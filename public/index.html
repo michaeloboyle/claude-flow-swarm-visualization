@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PKM Swarm Intelligence Visualization</title>
+    <script src="https://unpkg.com/vis-network@latest/dist/vis-network.min.js"></script>
+    <link href="https://unpkg.com/vis-network@latest/dist/dist/vis-network.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #app {
+            display: grid;
+            grid-template-columns: 300px 1fr 350px;
+            grid-template-rows: 60px 1fr 80px;
+            height: 100vh;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        #header {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        #sidebar {
+            grid-row: 2 / 3;
+            overflow-y: auto;
+        }
+
+        #visualization {
+            grid-row: 2 / 3;
+            position: relative;
+        }
+
+        #details {
+            grid-row: 2 / 3;
+            overflow-y: auto;
+        }
+
+        #metrics {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        #network {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            background: rgba(20, 20, 40, 0.5);
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4ECDC4;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        .node-list {
+            list-style: none;
+        }
+
+        .node-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .node-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(5px);
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-active { background: #27AE60; }
+        .status-busy { background: #F39C12; }
+        .status-idle { background: #95A5A6; }
+        .status-failed { background: #E74C3C; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .connection-status {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .connected { background: rgba(39, 174, 96, 0.3); }
+        .disconnected { background: rgba(231, 76, 60, 0.3); }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        h2 {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 15px;
+            opacity: 0.9;
+        }
+
+        .detail-section {
+            margin-bottom: 20px;
+        }
+
+        .property {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 14px;
+        }
+
+        .property-key {
+            opacity: 0.7;
+        }
+
+        .property-value {
+            font-weight: 500;
+        }
+
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        button {
+            padding: 8px 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="header" class="panel">
+            <h1>🐝 PKM Swarm Intelligence</h1>
+            <div id="connection-indicator" class="connection-status disconnected">
+                Disconnected
+            </div>
+        </div>
+
+        <div id="sidebar" class="panel">
+            <h2>Active Entities</h2>
+            <ul id="node-list" class="node-list"></ul>
+        </div>
+
+        <div id="visualization" class="panel">
+            <div id="controls">
+                <button onclick="togglePhysics()">Toggle Physics</button>
+                <button onclick="fitNetwork()">Fit View</button>
+                <button onclick="toggleLayout()">Change Layout</button>
+            </div>
+            <div id="network"></div>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #FF6B6B;"></div>
+                    <span>Swarm</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #4ECDC4;"></div>
+                    <span>Agent</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #F39C12;"></div>
+                    <span>Task</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #3498DB;"></div>
+                    <span>Issue</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #2C3E50;"></div>
+                    <span>File</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="details" class="panel">
+            <h2>Selected Entity</h2>
+            <div id="detail-content">
+                <p style="opacity: 0.7;">Click on a node to view details</p>
+            </div>
+        </div>
+
+        <div id="metrics" class="panel">
+            <div class="metric">
+                <div class="metric-value" id="metric-nodes">0</div>
+                <div class="metric-label">Total Nodes</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="metric-edges">0</div>
+                <div class="metric-label">Connections</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="metric-agents">0</div>
+                <div class="metric-label">Active Agents</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="metric-tasks">0</div>
+                <div class="metric-label">Running Tasks</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="metric-files">0</div>
+                <div class="metric-label">Files Modified</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="metric-issues">0</div>
+                <div class="metric-label">Open Issues</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="visualization.js"></script>
+</body>
+</html>

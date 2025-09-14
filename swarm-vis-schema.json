@@ -1,0 +1,290 @@
+{
+  "schema": {
+    "name": "PKM Swarm Intelligence Graph",
+    "version": "1.0.0",
+    "description": "Neo4j-like schema for real-time swarm visualization",
+
+    "nodes": {
+      "Swarm": {
+        "properties": {
+          "id": "string",
+          "name": "string",
+          "topology": "enum[hierarchical,mesh,ring,star]",
+          "status": "enum[active,idle,suspended]",
+          "agentCount": "number",
+          "taskCount": "number",
+          "createdAt": "timestamp",
+          "performance": "object"
+        },
+        "visualization": {
+          "shape": "hexagon",
+          "color": "#FF6B6B",
+          "size": 50,
+          "icon": "🐝"
+        }
+      },
+
+      "Agent": {
+        "properties": {
+          "id": "string",
+          "name": "string",
+          "type": "enum[coordinator,analyst,optimizer,monitor,specialist]",
+          "status": "enum[active,idle,busy,failed]",
+          "capabilities": "array",
+          "performance": "object",
+          "memory": "object"
+        },
+        "visualization": {
+          "shape": "circle",
+          "color": {
+            "coordinator": "#4ECDC4",
+            "analyst": "#45B7D1",
+            "optimizer": "#96CEB4",
+            "monitor": "#FFEAA7",
+            "specialist": "#DDA0DD"
+          },
+          "size": 30,
+          "animation": "pulse_when_active"
+        }
+      },
+
+      "Task": {
+        "properties": {
+          "id": "string",
+          "name": "string",
+          "priority": "enum[low,medium,high,critical]",
+          "status": "enum[pending,executing,completed,failed]",
+          "progress": "number",
+          "duration": "number",
+          "result": "object"
+        },
+        "visualization": {
+          "shape": "square",
+          "color": {
+            "pending": "#95A5A6",
+            "executing": "#F39C12",
+            "completed": "#27AE60",
+            "failed": "#E74C3C"
+          },
+          "size": 25,
+          "animation": "rotate_when_executing"
+        }
+      },
+
+      "Issue": {
+        "properties": {
+          "id": "string",
+          "number": "number",
+          "title": "string",
+          "type": "enum[epic,story,bug,task]",
+          "status": "enum[open,in_progress,review,closed]",
+          "labels": "array",
+          "assignee": "string",
+          "linkedPR": "string"
+        },
+        "visualization": {
+          "shape": "diamond",
+          "color": {
+            "epic": "#9B59B6",
+            "story": "#3498DB",
+            "bug": "#E74C3C",
+            "task": "#1ABC9C"
+          },
+          "size": 35,
+          "icon": "github"
+        }
+      },
+
+      "File": {
+        "properties": {
+          "path": "string",
+          "name": "string",
+          "type": "enum[markdown,script,config,test]",
+          "size": "number",
+          "modified": "timestamp",
+          "links": "array",
+          "status": "enum[unchanged,modified,moved,deleted]"
+        },
+        "visualization": {
+          "shape": "box",
+          "color": {
+            "markdown": "#2C3E50",
+            "script": "#E67E22",
+            "config": "#8E44AD",
+            "test": "#16A085"
+          },
+          "size": 20,
+          "opacity": 0.8
+        }
+      },
+
+      "Memory": {
+        "properties": {
+          "key": "string",
+          "namespace": "string",
+          "value": "object",
+          "ttl": "number",
+          "created": "timestamp",
+          "accessed": "timestamp"
+        },
+        "visualization": {
+          "shape": "database",
+          "color": "#34495E",
+          "size": 25,
+          "style": "dashed"
+        }
+      }
+    },
+
+    "relationships": {
+      "ORCHESTRATES": {
+        "from": "Swarm",
+        "to": "Agent",
+        "properties": {
+          "role": "string",
+          "since": "timestamp"
+        },
+        "visualization": {
+          "color": "#FF6B6B",
+          "width": 3,
+          "dashes": false,
+          "arrows": "to"
+        }
+      },
+
+      "EXECUTES": {
+        "from": "Agent",
+        "to": "Task",
+        "properties": {
+          "startTime": "timestamp",
+          "progress": "number"
+        },
+        "visualization": {
+          "color": "#4ECDC4",
+          "width": 2,
+          "dashes": false,
+          "arrows": "to",
+          "animation": "flow"
+        }
+      },
+
+      "COLLABORATES": {
+        "from": "Agent",
+        "to": "Agent",
+        "properties": {
+          "protocol": "string",
+          "messages": "number"
+        },
+        "visualization": {
+          "color": "#95A5A6",
+          "width": 1,
+          "dashes": true,
+          "arrows": "both"
+        }
+      },
+
+      "IMPLEMENTS": {
+        "from": "Task",
+        "to": "Issue",
+        "properties": {
+          "completionPercentage": "number"
+        },
+        "visualization": {
+          "color": "#3498DB",
+          "width": 2,
+          "dashes": false,
+          "arrows": "to"
+        }
+      },
+
+      "MODIFIES": {
+        "from": "Task",
+        "to": "File",
+        "properties": {
+          "operation": "enum[create,update,move,delete]",
+          "timestamp": "timestamp"
+        },
+        "visualization": {
+          "color": "#E74C3C",
+          "width": 2,
+          "dashes": false,
+          "arrows": "to",
+          "label": "operation"
+        }
+      },
+
+      "DEPENDS_ON": {
+        "from": "Issue",
+        "to": "Issue",
+        "properties": {
+          "type": "enum[blocks,requires,relates]"
+        },
+        "visualization": {
+          "color": "#9B59B6",
+          "width": 2,
+          "dashes": true,
+          "arrows": "to"
+        }
+      },
+
+      "STORES": {
+        "from": "Agent",
+        "to": "Memory",
+        "properties": {
+          "operation": "enum[read,write,delete]",
+          "timestamp": "timestamp"
+        },
+        "visualization": {
+          "color": "#34495E",
+          "width": 1,
+          "dashes": true,
+          "arrows": "both"
+        }
+      },
+
+      "LINKS_TO": {
+        "from": "File",
+        "to": "File",
+        "properties": {
+          "linkType": "enum[wiki,reference,import]",
+          "count": "number"
+        },
+        "visualization": {
+          "color": "#2C3E50",
+          "width": 1,
+          "dashes": true,
+          "arrows": "to"
+        }
+      }
+    },
+
+    "metrics": {
+      "node_metrics": [
+        "degree_centrality",
+        "betweenness_centrality",
+        "clustering_coefficient",
+        "pagerank"
+      ],
+      "graph_metrics": [
+        "total_nodes",
+        "total_edges",
+        "average_degree",
+        "graph_density",
+        "connected_components"
+      ],
+      "performance_metrics": [
+        "task_throughput",
+        "agent_utilization",
+        "memory_efficiency",
+        "error_rate"
+      ]
+    },
+
+    "queries": {
+      "critical_path": "MATCH path = (s:Swarm)-[:ORCHESTRATES]->(a:Agent)-[:EXECUTES]->(t:Task)-[:IMPLEMENTS]->(i:Issue) WHERE i.priority = 'critical' RETURN path",
+      "bottlenecks": "MATCH (a:Agent)-[:EXECUTES]->(t:Task) WHERE t.status = 'executing' AND t.duration > avg(t.duration) * 2 RETURN a, t",
+      "file_impact": "MATCH (t:Task)-[:MODIFIES]->(f:File)<-[:LINKS_TO]-(f2:File) RETURN f, count(f2) as impact ORDER BY impact DESC",
+      "collaboration_network": "MATCH (a1:Agent)-[c:COLLABORATES]-(a2:Agent) RETURN a1, a2, c.messages ORDER BY c.messages DESC"
+    }
+  }
+}
