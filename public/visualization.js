@@ -761,6 +761,7 @@ class SwarmVisualization {
 
     handleFileModification(data) {
         const fileName = data.filePath.split('/').pop();
+        const workspace = data.workspace || data.filePath.split('/')[0];
 
         // Add or update file node with full data
         this.addNode({
@@ -768,21 +769,41 @@ class SwarmVisualization {
             type: 'File',
             label: fileName,
             status: data.operation,
+            workspace: workspace,
             ...data
         });
 
-        // Create detailed log for file operation
-        let logMessage = `File ${data.operation}: "${fileName}"`;
+        // Add workspace node if provided
+        if (data.workspace) {
+            this.addNode({
+                id: data.workspace,
+                type: 'Workspace',
+                label: data.workspace,
+                status: 'active'
+            });
+        }
+
+        // Create detailed log for file operation with diff info
+        let logMessage = `📁 ${data.operation.toUpperCase()}: "${fileName}"`;
+        let diffInfo = '';
 
         // Add operation-specific details
         switch (data.operation) {
             case 'write':
                 logMessage += ` - New content written`;
                 if (data.size) logMessage += ` (${data.size} bytes)`;
+                if (data.diff && data.diff.added) diffInfo = `+${data.diff.added} lines`;
                 break;
             case 'update':
                 logMessage += ` - Content updated`;
                 if (data.changes) logMessage += ` (${data.changes} changes)`;
+                if (data.diff) {
+                    const parts = [];
+                    if (data.diff.added) parts.push(`+${data.diff.added}`);
+                    if (data.diff.removed) parts.push(`-${data.diff.removed}`);
+                    if (data.diff.modified) parts.push(`~${data.diff.modified}`);
+                    diffInfo = parts.join(' ');
+                }
                 break;
             case 'analyze':
                 logMessage += ` - Analyzing content`;
@@ -790,12 +811,15 @@ class SwarmVisualization {
                 break;
             case 'read':
                 logMessage += ` - Content accessed`;
+                if (data.lines) logMessage += ` (${data.lines} lines)`;
                 break;
         }
 
+        if (data.workspace) logMessage += ` in ${data.workspace}`;
         if (data.agent) logMessage += ` by ${data.agent}`;
 
-        this.logActivity('file', logMessage);
+        // Log with enhanced priority for file operations
+        this.logActivityWithDiff('file', logMessage, diffInfo, data.diff);
 
         // Animate file modification with size and flash effects
         this.animateFileModification(data.filePath, data.operation);
@@ -815,8 +839,17 @@ class SwarmVisualization {
     }
 
     logActivity(type, message) {
+        this.logActivityWithDiff(type, message, '', null);
+    }
+
+    logActivityWithDiff(type, message, diffInfo = '', diffData = null) {
         const logContent = document.getElementById('log-content');
         if (!logContent) return;
+
+        // Skip agent status changes if they're just routine updates
+        if (type === 'agent' && (message.includes('idle') || message.includes('configured'))) {
+            return;
+        }
 
         const entry = document.createElement('div');
         entry.className = 'log-entry';
@@ -828,13 +861,32 @@ class SwarmVisualization {
             second: '2-digit'
         });
 
-        entry.innerHTML = `
+        let entryHtml = `
             <span class="log-timestamp">${timestamp}</span>
             <span class="log-type log-type-${type}">${type}</span>
             <span class="log-message">${message}</span>
         `;
 
-        logContent.appendChild(entry);
+        if (diffInfo) {
+            entryHtml += `<span class="log-diff">${diffInfo}</span>`;
+        }
+
+        entry.innerHTML = entryHtml;
+
+        // Add diff details if available
+        if (diffData && diffData.details) {
+            const diffDetails = document.createElement('div');
+            diffDetails.className = 'log-diff';
+            diffDetails.innerHTML = this.formatDiffDetails(diffData.details);
+            entry.appendChild(diffDetails);
+        }
+
+        // Insert file operations at the top for priority, others at bottom
+        if (type === 'file') {
+            logContent.insertBefore(entry, logContent.firstChild);
+        } else {
+            logContent.appendChild(entry);
+        }
 
         // Auto-scroll if enabled
         const autoScroll = document.getElementById('auto-scroll');
@@ -843,10 +895,24 @@ class SwarmVisualization {
         }
 
         // Limit log entries to prevent memory issues
-        const maxEntries = 500;
+        const maxEntries = 200; // Reduced for horizontal layout
         while (logContent.children.length > maxEntries) {
-            logContent.removeChild(logContent.firstChild);
+            logContent.removeChild(logContent.lastChild);
         }
+    }
+
+    formatDiffDetails(details) {
+        if (!details || !Array.isArray(details)) return '';
+
+        return details.slice(0, 3).map(line => {
+            if (line.startsWith('+')) {
+                return `<div class="diff-add">${line}</div>`;
+            } else if (line.startsWith('-')) {
+                return `<div class="diff-remove">${line}</div>`;
+            } else {
+                return `<div class="diff-modify">${line}</div>`;
+            }
+        }).join('');
     }
 
     animateNodeStatus(nodeId, status) {
@@ -1238,5 +1304,103 @@ function clearLog() {
         if (swarmVis) {
             swarmVis.logActivity('system', 'Log cleared');
         }
+    }
+}
+
+// Fullscreen functionality
+let fullscreenPanel = null;
+
+function toggleFullscreen(panelId) {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+
+    if (fullscreenPanel === panelId) {
+        // Exit fullscreen
+        exitFullscreen();
+    } else {
+        // Enter fullscreen
+        enterFullscreen(panelId);
+    }
+}
+
+function enterFullscreen(panelId) {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+
+    // Exit any existing fullscreen
+    if (fullscreenPanel) {
+        exitFullscreen();
+    }
+
+    // Create backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'fullscreen-backdrop';
+    backdrop.id = 'fullscreen-backdrop';
+    document.body.appendChild(backdrop);
+
+    // Add fullscreen class to panel
+    panel.classList.add('fullscreen-panel');
+    fullscreenPanel = panelId;
+
+    // Add escape key listener
+    document.addEventListener('keydown', handleFullscreenEscape);
+
+    // Add close button
+    const closeButton = document.createElement('div');
+    closeButton.className = 'fullscreen-controls';
+    closeButton.innerHTML = `
+        <button class="fullscreen-toggle" onclick="exitFullscreen()" title="Exit Fullscreen">✕</button>
+    `;
+    panel.appendChild(closeButton);
+
+    // Force network redraw if it's the visualization panel
+    if (panelId === 'visualization' && window.swarmVis && window.swarmVis.network) {
+        setTimeout(() => {
+            window.swarmVis.network.redraw();
+            window.swarmVis.network.fit();
+        }, 100);
+    }
+}
+
+function exitFullscreen() {
+    if (!fullscreenPanel) return;
+
+    const panel = document.getElementById(fullscreenPanel);
+    if (panel) {
+        // Remove fullscreen class
+        panel.classList.remove('fullscreen-panel');
+
+        // Remove close controls
+        const controls = panel.querySelector('.fullscreen-controls');
+        if (controls) {
+            controls.remove();
+        }
+    }
+
+    // Remove backdrop
+    const backdrop = document.getElementById('fullscreen-backdrop');
+    if (backdrop) {
+        backdrop.remove();
+    }
+
+    // Remove escape listener
+    document.removeEventListener('keydown', handleFullscreenEscape);
+
+    // Reset fullscreen state
+    const previousPanel = fullscreenPanel;
+    fullscreenPanel = null;
+
+    // Force network redraw if it was the visualization panel
+    if (previousPanel === 'visualization' && window.swarmVis && window.swarmVis.network) {
+        setTimeout(() => {
+            window.swarmVis.network.redraw();
+            window.swarmVis.network.fit();
+        }, 100);
+    }
+}
+
+function handleFullscreenEscape(event) {
+    if (event.key === 'Escape' && fullscreenPanel) {
+        exitFullscreen();
     }
 }

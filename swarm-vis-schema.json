@@ -255,6 +255,36 @@
           "dashes": true,
           "arrows": "to"
         }
+      },
+
+      "OPERATES_IN": {
+        "from": "File",
+        "to": "Workspace",
+        "properties": {
+          "path": "string",
+          "permissions": "enum[read,write,execute]"
+        },
+        "visualization": {
+          "color": "#4a90e2",
+          "width": 1,
+          "dashes": false,
+          "arrows": "to"
+        }
+      },
+
+      "CONTAINS": {
+        "from": "Workspace",
+        "to": "File",
+        "properties": {
+          "relativePath": "string",
+          "gitTracked": "boolean"
+        },
+        "visualization": {
+          "color": "#4a90e2",
+          "width": 2,
+          "dashes": false,
+          "arrows": "to"
+        }
       }
     },
 

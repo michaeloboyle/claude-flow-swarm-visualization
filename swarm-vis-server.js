@@ -30,12 +30,14 @@ class SwarmVisualizationServer extends EventEmitter {
 
     // Garbage collection settings
     this.gcConfig = {
-      maxNodes: 500,                    // Maximum nodes before cleanup
-      maxEdges: 600,                    // Maximum edges before cleanup
-      maxAge: 10 * 60 * 1000,          // 10 minutes in milliseconds
-      gcInterval: 30 * 1000,           // Run GC every 30 seconds
+      maxNodes: 100,                    // More aggressive node limit (was 500)
+      maxEdges: 150,                    // More aggressive edge limit (was 600)
+      maxAge: 2 * 60 * 1000,           // 2 minutes max age (was 10 minutes)
+      gcInterval: 10 * 1000,           // Run GC every 10 seconds (was 30)
       preserveTypes: ['GlobalAgent', 'Workspace', 'CoordinationHub'], // Never delete these
-      enabled: true
+      enabled: true,
+      clientAwareGC: true,             // New: More aggressive GC when no clients
+      noClientMaxAge: 30 * 1000        // 30 seconds when no clients connected
     };
 
     this.setupRoutes();
@@ -162,10 +164,28 @@ class SwarmVisualizationServer extends EventEmitter {
 
     this.on('file:modified', (data) => {
       this.addNode('File', data);
-      this.addEdge('MODIFIES', data.taskId, data.filePath, {
-        operation: data.operation,
-        timestamp: new Date()
-      });
+
+      // Link file to workspace if workspace info is provided
+      if (data.workspace) {
+        this.addNode('Workspace', {
+          id: data.workspace,
+          name: data.workspace,
+          type: 'workspace'
+        });
+        this.addEdge('OPERATES_IN', data.filePath, data.workspace, {
+          path: data.filePath,
+          permissions: data.permissions || 'read,write'
+        });
+      }
+
+      if (data.taskId) {
+        this.addEdge('MODIFIES', data.taskId, data.filePath, {
+          operation: data.operation,
+          timestamp: new Date(),
+          diff: data.diff || null
+        });
+      }
+
       this.broadcast('file:modified', data);
     });
 
@@ -385,13 +405,27 @@ class SwarmVisualizationServer extends EventEmitter {
     const beforeNodes = this.graph.nodes.length;
     const beforeEdges = this.graph.edges.length;
 
-    // Skip GC if under thresholds
-    if (beforeNodes < this.gcConfig.maxNodes && beforeEdges < this.gcConfig.maxEdges) {
+    // Determine if we have active clients
+    const hasActiveClients = this.clients.size > 0;
+
+    // Use different thresholds based on client presence
+    const effectiveMaxNodes = hasActiveClients ? this.gcConfig.maxNodes : 20; // Much lower when no clients
+    const effectiveMaxEdges = hasActiveClients ? this.gcConfig.maxEdges : 30;
+    const effectiveMaxAge = hasActiveClients ? this.gcConfig.maxAge : this.gcConfig.noClientMaxAge;
+
+    // More aggressive GC when no clients or over thresholds
+    const shouldRunGC = !hasActiveClients ||
+                       beforeNodes > effectiveMaxNodes ||
+                       beforeEdges > effectiveMaxEdges;
+
+    if (!shouldRunGC) {
       return;
     }
 
     const now = new Date();
-    const cutoffTime = new Date(now.getTime() - this.gcConfig.maxAge);
+    const cutoffTime = new Date(now.getTime() - effectiveMaxAge);
+
+    console.log(`🗑️  Running GC (clients: ${this.clients.size}, maxAge: ${effectiveMaxAge/1000}s)`);
 
     // Remove old nodes (except preserved types)
     const oldNodes = this.graph.nodes.filter(node => {

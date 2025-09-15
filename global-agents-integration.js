@@ -92,7 +92,7 @@ class GlobalAgentsIntegration extends EventEmitter {
       if (agent.config.config?.workspace) {
         const workspaceNode = {
           id: `workspace-${agentId}`,
-          label: path.basename(agent.config.config.workspace),
+          label: `📁 ${path.basename(agent.config.config.workspace)}`,
           type: 'Workspace',
           path: agent.config.config.workspace,
           color: '#4a90e2',
@@ -139,6 +139,48 @@ class GlobalAgentsIntegration extends EventEmitter {
     return colors[agentType] || '#888888';
   }
 
+  getFileIcon(fileName) {
+    const extension = path.extname(fileName).toLowerCase();
+    const iconMap = {
+      '.js': '📄',    // JavaScript
+      '.ts': '📄',    // TypeScript
+      '.py': '🐍',    // Python
+      '.rb': '💎',    // Ruby
+      '.md': '📝',    // Markdown
+      '.txt': '📄',   // Text
+      '.json': '🔧',  // JSON config
+      '.yml': '⚙️',   // YAML config
+      '.yaml': '⚙️',  // YAML config
+      '.html': '🌐',  // HTML
+      '.css': '🎨',   // CSS
+      '.scss': '🎨',  // SCSS
+      '.png': '🖼️',   // Image
+      '.jpg': '🖼️',   // Image
+      '.jpeg': '🖼️',  // Image
+      '.gif': '🖼️',   // Image
+      '.svg': '🖼️',   // Image
+      '.pdf': '📋',   // PDF
+      '.zip': '📦',   // Archive
+      '.tar': '📦',   // Archive
+      '.gz': '📦',    // Archive
+      '.log': '📊',   // Log file
+      '.env': '🔐',   // Environment
+      '.sh': '⚡',    // Shell script
+      '.bat': '⚡',   // Batch script
+      '.sql': '🗄️',   // Database
+      '.db': '🗄️',    // Database
+      '.xlsx': '📊',  // Excel
+      '.csv': '📊',   // CSV
+      '.xml': '📄',   // XML
+      '.ini': '⚙️',   // Config
+      '.conf': '⚙️',  // Config
+      '.dockerfile': '🐳', // Docker
+      '.gitignore': '🙈'   // Git
+    };
+
+    return iconMap[extension] || '📄'; // Default document icon
+  }
+
   startMonitoring() {
     if (this.isRunning) return;
 
@@ -146,9 +188,17 @@ class GlobalAgentsIntegration extends EventEmitter {
     console.log('🔍 Starting global agents monitoring...');
 
     this.monitorInterval = setInterval(() => {
-      this.updateAgentStatuses();
-      this.updateMetrics();
-      this.broadcastUpdates();
+      // Only simulate activity if clients are connected
+      if (this.server.clients.size > 0) {
+        this.updateAgentStatuses();
+        this.updateMetrics();
+        this.broadcastUpdates();
+      } else {
+        // When no clients, just log occasionally to show we're still alive
+        if (Math.random() < 0.1) { // 10% chance to log
+          console.log('💤 No clients connected - pausing agent simulation');
+        }
+      }
     }, this.pollInterval);
   }
 
@@ -375,7 +425,7 @@ class GlobalAgentsIntegration extends EventEmitter {
     const fileId = `file-${fileName.replace(/[^a-zA-Z0-9]/g, '-')}`;
     this.server.addNode('File', {
       id: fileId,
-      label: fileName,
+      label: `${this.getFileIcon(fileName)} ${fileName}`,
       status: operation,
       lastModified: new Date(),
       agent: agent.config.name,
