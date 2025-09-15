@@ -427,6 +427,15 @@ class SwarmVisualization {
         this.nodes.add(visNode);
         this.updateSidebar();
 
+        // Log node creation based on type
+        let logType = 'system';
+        if (nodeData.type === 'Task') logType = 'task';
+        else if (nodeData.type === 'File') logType = 'file';
+        else if (nodeData.type === 'Analysis') logType = 'analysis';
+        else if (nodeData.type === 'GlobalAgent' || nodeData.type === 'Agent') logType = 'agent';
+
+        this.logActivity(logType, `Created: ${nodeData.label || nodeData.id}`);
+
         // Animate new node
         this.animateNodeAddition(visNode.id);
     }
@@ -654,8 +663,46 @@ class SwarmVisualization {
         // Update node visual to indicate activity
         this.animateNodeStatus(data.agentId, data.newStatus);
 
+        // Log the status change
+        this.logActivity('agent', `${data.agent}: ${data.oldStatus} → ${data.newStatus}`);
+
         // Update sidebar immediately
         this.updateSidebar();
+    }
+
+    logActivity(type, message) {
+        const logContent = document.getElementById('log-content');
+        if (!logContent) return;
+
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+
+        const timestamp = new Date().toLocaleTimeString('en-US', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+
+        entry.innerHTML = `
+            <span class="log-timestamp">${timestamp}</span>
+            <span class="log-type log-type-${type}">${type}</span>
+            <span class="log-message">${message}</span>
+        `;
+
+        logContent.appendChild(entry);
+
+        // Auto-scroll if enabled
+        const autoScroll = document.getElementById('auto-scroll');
+        if (autoScroll && autoScroll.checked) {
+            logContent.scrollTop = logContent.scrollHeight;
+        }
+
+        // Limit log entries to prevent memory issues
+        const maxEntries = 500;
+        while (logContent.children.length > maxEntries) {
+            logContent.removeChild(logContent.firstChild);
+        }
     }
 
     animateNodeStatus(nodeId, status) {
@@ -1002,3 +1049,14 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('❌ Failed to initialize SwarmVisualization:', error);
     }
 });
+
+// Clear log function
+function clearLog() {
+    const logContent = document.getElementById('log-content');
+    if (logContent) {
+        logContent.innerHTML = '';
+        if (swarmVis) {
+            swarmVis.logActivity('system', 'Log cleared');
+        }
+    }
+}

@@ -93,9 +93,111 @@
             max-height: calc(100vh - 150px);
         }
 
-        #details {
+        #activity-log {
             grid-row: 2 / 3;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--panel-border);
+            margin-bottom: 10px;
+            flex-shrink: 0;
+        }
+
+        #log-header h2 {
+            margin: 0;
+        }
+
+        .log-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+        }
+
+        .log-controls button {
+            padding: 4px 10px;
+            font-size: 11px;
+        }
+
+        .log-controls label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            opacity: 0.8;
+        }
+
+        #log-content {
+            flex: 1;
             overflow-y: auto;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .log-entry {
+            padding: 4px 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            gap: 10px;
+            transition: background 0.2s;
+        }
+
+        .log-entry:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .log-timestamp {
+            color: var(--text-secondary);
+            opacity: 0.6;
+            white-space: nowrap;
+        }
+
+        .log-type {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 3px;
+            white-space: nowrap;
+        }
+
+        .log-message {
+            flex: 1;
+            word-wrap: break-word;
+        }
+
+        /* Log type colors */
+        .log-type-agent {
+            background: rgba(78, 205, 196, 0.2);
+            color: #4ECDC4;
+        }
+        .log-type-task {
+            background: rgba(243, 156, 18, 0.2);
+            color: #F39C12;
+        }
+        .log-type-file {
+            background: rgba(155, 89, 182, 0.2);
+            color: #9B59B6;
+        }
+        .log-type-collab {
+            background: rgba(52, 152, 219, 0.2);
+            color: #3498DB;
+        }
+        .log-type-analysis {
+            background: rgba(231, 76, 60, 0.2);
+            color: #E74C3C;
+        }
+        .log-type-system {
+            background: rgba(149, 165, 166, 0.2);
+            color: #95A5A6;
         }
 
         #metrics {
@@ -438,10 +540,18 @@
             </div>
         </div>
 
-        <div id="details" class="panel">
-            <h2>Selected Entity</h2>
-            <div id="detail-content">
-                <p style="opacity: 0.7;">Click on a node to view details</p>
+        <div id="activity-log" class="panel">
+            <div id="log-header">
+                <h2>Activity Log</h2>
+                <div class="log-controls">
+                    <button onclick="clearLog()" title="Clear log">Clear</button>
+                    <label>
+                        <input type="checkbox" id="auto-scroll" checked> Auto-scroll
+                    </label>
+                </div>
+            </div>
+            <div id="log-content">
+                <!-- Log entries will be added here -->
             </div>
         </div>
 
