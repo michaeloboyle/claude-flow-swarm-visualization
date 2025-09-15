@@ -430,14 +430,39 @@ class SwarmVisualization {
         this.nodes.add(visNode);
         this.updateSidebar();
 
-        // Log node creation based on type
+        // Create detailed log message based on node type
         let logType = 'system';
-        if (nodeData.type === 'Task') logType = 'task';
-        else if (nodeData.type === 'File') logType = 'file';
-        else if (nodeData.type === 'Analysis') logType = 'analysis';
-        else if (nodeData.type === 'GlobalAgent' || nodeData.type === 'Agent') logType = 'agent';
+        let logMessage = '';
 
-        this.logActivity(logType, `Created: ${nodeData.label || nodeData.id}`);
+        switch (nodeData.type) {
+            case 'Task':
+                logType = 'task';
+                logMessage = `Task Created: "${nodeData.label || nodeData.id}" - Priority: ${nodeData.priority || 'normal'}, Status: ${nodeData.status || 'pending'}`;
+                if (nodeData.createdBy) logMessage += `, By: ${nodeData.createdBy}`;
+                break;
+            case 'File':
+                logType = 'file';
+                logMessage = `File: "${nodeData.label || nodeData.id}" - Operation: ${nodeData.status || 'unknown'}`;
+                if (nodeData.lastModified) logMessage += `, Modified: ${new Date(nodeData.lastModified).toLocaleTimeString()}`;
+                break;
+            case 'Analysis':
+                logType = 'analysis';
+                logMessage = `Analysis Started: "${nodeData.label || nodeData.id}" - Progress: ${nodeData.progress || 0}%`;
+                break;
+            case 'GlobalAgent':
+            case 'Agent':
+                logType = 'agent';
+                logMessage = `Agent Spawned: "${nodeData.label || nodeData.id}" - Type: ${nodeData.agentType || nodeData.type}`;
+                if (nodeData.capabilities && nodeData.capabilities.length > 0) {
+                    logMessage += `, Capabilities: ${nodeData.capabilities.slice(0, 3).join(', ')}`;
+                }
+                break;
+            default:
+                logMessage = `${nodeData.type} Created: "${nodeData.label || nodeData.id}"`;
+                if (nodeData.status) logMessage += ` - Status: ${nodeData.status}`;
+        }
+
+        this.logActivity(logType, logMessage);
 
         // Animate new node
         this.animateNodeAddition(visNode.id);
@@ -454,6 +479,42 @@ class SwarmVisualization {
     addEdge(edgeData) {
         const visEdge = this.createVisEdge(edgeData);
         this.edges.add(visEdge);
+
+        // Log edge creation with context
+        const fromNode = this.nodes.get(edgeData.from);
+        const toNode = this.nodes.get(edgeData.to);
+        const fromLabel = fromNode ? fromNode.label : edgeData.from;
+        const toLabel = toNode ? toNode.label : edgeData.to;
+
+        let logType = 'collab';
+        let logMessage = '';
+
+        switch (edgeData.type) {
+            case 'MODIFIES':
+                logType = 'file';
+                logMessage = `File Operation: ${fromLabel} → ${edgeData.operation || 'modifies'} → ${toLabel}`;
+                break;
+            case 'EXECUTES':
+                logType = 'task';
+                logMessage = `Task Execution: ${fromLabel} → executing → ${toLabel}`;
+                break;
+            case 'COLLABORATES':
+                logType = 'collab';
+                logMessage = `Collaboration: ${fromLabel} ↔ ${toLabel}`;
+                break;
+            case 'PERFORMS':
+                logType = 'analysis';
+                logMessage = `Analysis: ${fromLabel} → performing → ${toLabel}`;
+                break;
+            case 'COORDINATES_WITH':
+                logType = 'collab';
+                logMessage = `Coordination: ${fromLabel} ↔ ${toLabel}`;
+                break;
+            default:
+                logMessage = `Connection: ${fromLabel} → ${edgeData.type} → ${toLabel}`;
+        }
+
+        this.logActivity(logType, logMessage);
 
         // Animate new edge
         this.animateEdgeAddition(visEdge.id);
@@ -642,8 +703,7 @@ class SwarmVisualization {
             title: `${node.label}\nOperation: ${operation}`
         });
 
-        // Log the file operation
-        this.logActivity('file', `${node.label} ${operation} operation (size changed)`);
+        // Removed redundant file operation log - already logged in handleFileModification
 
         // Return to normal size after animation
         setTimeout(() => {
@@ -700,14 +760,42 @@ class SwarmVisualization {
     }
 
     handleFileModification(data) {
-        // Add or update file node
+        const fileName = data.filePath.split('/').pop();
+
+        // Add or update file node with full data
         this.addNode({
             id: data.filePath,
             type: 'File',
-            label: data.filePath.split('/').pop(),
+            label: fileName,
             status: data.operation,
             ...data
         });
+
+        // Create detailed log for file operation
+        let logMessage = `File ${data.operation}: "${fileName}"`;
+
+        // Add operation-specific details
+        switch (data.operation) {
+            case 'write':
+                logMessage += ` - New content written`;
+                if (data.size) logMessage += ` (${data.size} bytes)`;
+                break;
+            case 'update':
+                logMessage += ` - Content updated`;
+                if (data.changes) logMessage += ` (${data.changes} changes)`;
+                break;
+            case 'analyze':
+                logMessage += ` - Analyzing content`;
+                if (data.analysisType) logMessage += ` (${data.analysisType})`;
+                break;
+            case 'read':
+                logMessage += ` - Content accessed`;
+                break;
+        }
+
+        if (data.agent) logMessage += ` by ${data.agent}`;
+
+        this.logActivity('file', logMessage);
 
         // Animate file modification with size and flash effects
         this.animateFileModification(data.filePath, data.operation);
@@ -834,9 +922,6 @@ class SwarmVisualization {
         } else {
             this.removePulsingEffect(nodeId);
         }
-
-        // Log the visual change
-        this.logActivity('system', `Node ${node.label} resized for status: ${status}`);
     }
 
     addPulsingEffect(nodeId, status) {

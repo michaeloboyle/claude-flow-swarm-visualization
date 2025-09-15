@@ -294,21 +294,36 @@ class GlobalAgentsIntegration extends EventEmitter {
 
     const taskNames = tasks[agent.config.type] || tasks['coordinator'];
     const taskName = taskNames[Math.floor(Math.random() * taskNames.length)];
+    const priority = ['high', 'medium', 'low'][Math.floor(Math.random() * 3)];
 
-    // Add task node
+    // Add task node with detailed metadata
     this.server.addNode('Task', {
       id: taskId,
       label: taskName,
       status: 'pending',
-      priority: ['high', 'medium', 'low'][Math.floor(Math.random() * 3)],
-      createdBy: agentId,
+      priority,
+      createdBy: agent.config.name,
+      estimatedDuration: Math.floor(Math.random() * 300) + 60, // 1-6 minutes
+      complexity: ['simple', 'moderate', 'complex'][Math.floor(Math.random() * 3)],
       timestamp: new Date()
     });
 
     // Connect agent to task
-    this.server.addEdge('EXECUTES', `global-${agentId}`, taskId);
+    this.server.addEdge('EXECUTES', `global-${agentId}`, taskId, {
+      executionType: 'primary',
+      timestamp: new Date()
+    });
 
-    console.log(`🎯 ${agent.config.name} created task: ${taskName}`);
+    // Broadcast task creation with context
+    this.server.broadcast('task:created', {
+      id: taskId,
+      label: taskName,
+      priority,
+      createdBy: agent.config.name,
+      agentType: agent.config.type
+    });
+
+    console.log(`🎯 ${agent.config.name} created task: ${taskName} (Priority: ${priority})`);
   }
 
   simulateCollaboration(activeAgents) {
@@ -349,19 +364,38 @@ class GlobalAgentsIntegration extends EventEmitter {
     const fileName = files[Math.floor(Math.random() * files.length)];
     const operation = operations[Math.floor(Math.random() * operations.length)];
 
-    // Add file node if not exists
+    // Generate operation-specific metadata
+    const metadata = {
+      size: Math.floor(Math.random() * 10000) + 500,
+      changes: Math.floor(Math.random() * 50) + 1,
+      analysisType: ['syntax', 'semantic', 'performance'][Math.floor(Math.random() * 3)]
+    };
+
+    // Add file node with detailed data
     const fileId = `file-${fileName.replace(/[^a-zA-Z0-9]/g, '-')}`;
     this.server.addNode('File', {
       id: fileId,
       label: fileName,
       status: operation,
-      lastModified: new Date()
+      lastModified: new Date(),
+      agent: agent.config.name,
+      ...metadata
     });
 
-    // Connect agent to file
+    // Connect agent to file with operation details
     this.server.addEdge('MODIFIES', `global-${agentId}`, fileId, {
       operation,
-      timestamp: new Date()
+      timestamp: new Date(),
+      agent: agent.config.name,
+      ...metadata
+    });
+
+    // Broadcast file modification with full context
+    this.server.broadcast('file:modified', {
+      filePath: fileName,
+      operation,
+      agent: agent.config.name,
+      ...metadata
     });
 
     console.log(`📄 ${agent.config.name} ${operation}ing ${fileName}`);
