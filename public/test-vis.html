@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vis.js Test</title>
+    <script src="https://unpkg.com/vis-network@latest/dist/vis-network.min.js"></script>
+    <style>
+        #network {
+            width: 800px;
+            height: 600px;
+            border: 1px solid #ccc;
+            background: #333;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #222;
+            color: white;
+        }
+        .debug {
+            background: #444;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Vis.js Network Test</h1>
+
+    <div class="debug">
+        <h3>Debug Info:</h3>
+        <div id="debug-info">Loading...</div>
+    </div>
+
+    <div id="network"></div>
+
+    <script>
+        console.log('🚀 Starting vis.js test...');
+
+        // Test data matching our server data
+        const nodes = new vis.DataSet([
+            {
+                id: 'global-business-intelligence',
+                label: 'Business-Intelligence-Analyst',
+                color: '#ff6b35',
+                size: 25,
+                font: { color: '#ffffff' }
+            },
+            {
+                id: 'global-job-search-velocity',
+                label: 'Job-Search-Velocity-Agent',
+                color: '#ff6b35',
+                size: 25,
+                font: { color: '#ffffff' }
+            },
+            {
+                id: 'global-pkm-intelligence',
+                label: 'PKM-Intelligence-Coordinator',
+                color: '#ff6b35',
+                size: 25,
+                font: { color: '#ffffff' }
+            },
+            {
+                id: 'global-coordination-hub',
+                label: 'Global Agent Hub',
+                color: '#ff4500',
+                size: 35,
+                font: { color: '#ffffff', face: 'bold' }
+            }
+        ]);
+
+        const edges = new vis.DataSet([
+            { from: 'global-coordination-hub', to: 'global-business-intelligence' },
+            { from: 'global-coordination-hub', to: 'global-job-search-velocity' },
+            { from: 'global-coordination-hub', to: 'global-pkm-intelligence' }
+        ]);
+
+        const container = document.getElementById('network');
+        const data = { nodes: nodes, edges: edges };
+
+        const options = {
+            nodes: {
+                shape: 'dot',
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                width: 2,
+                color: { color: '#ffffff' },
+                arrows: { to: true }
+            },
+            physics: {
+                enabled: true,
+                stabilization: { iterations: 100 }
+            }
+        };
+
+        try {
+            console.log('📊 Creating network with:', { nodes: nodes.length, edges: edges.length });
+            const network = new vis.Network(container, data, options);
+
+            network.on('stabilized', () => {
+                console.log('✅ Network stabilized successfully');
+                document.getElementById('debug-info').innerHTML = `
+                    ✅ Network created successfully<br>
+                    📊 Nodes: ${nodes.length}<br>
+                    🔗 Edges: ${edges.length}<br>
+                    🎯 Container: ${container.id}<br>
+                    📏 Size: ${container.clientWidth}x${container.clientHeight}px
+                `;
+            });
+
+            network.on('click', (params) => {
+                console.log('🖱️ Click detected:', params);
+            });
+
+        } catch (error) {
+            console.error('❌ Error creating network:', error);
+            document.getElementById('debug-info').innerHTML = `❌ Error: ${error.message}`;
+        }
+    </script>
+</body>
+</html>

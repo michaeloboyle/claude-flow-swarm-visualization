@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Flow Global Agents Dashboard</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            grid-template-rows: 60px 1fr;
+            height: 100vh;
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            background: rgba(255, 107, 53, 0.1);
+            border-bottom: 1px solid rgba(255, 107, 53, 0.3);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+        }
+
+        .header h1 {
+            color: #ff6b35;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .sidebar {
+            background: rgba(0, 0, 0, 0.3);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .main-view {
+            position: relative;
+            background: radial-gradient(circle at center, rgba(74, 144, 226, 0.1) 0%, transparent 70%);
+        }
+
+        .agents-list {
+            margin-bottom: 30px;
+        }
+
+        .agents-list h3 {
+            color: #4a90e2;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            border-bottom: 1px solid rgba(74, 144, 226, 0.3);
+            padding-bottom: 5px;
+        }
+
+        .agent-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .agent-card:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 107, 53, 0.5);
+        }
+
+        .agent-card.active {
+            border-color: #00ff00;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+        }
+
+        .agent-card.busy {
+            border-color: #ffff00;
+            box-shadow: 0 0 10px rgba(255, 255, 0, 0.3);
+        }
+
+        .agent-card.idle {
+            border-color: #0000ff;
+            box-shadow: 0 0 10px rgba(0, 0, 255, 0.3);
+        }
+
+        .agent-name {
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 5px;
+        }
+
+        .agent-type {
+            color: #888;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .agent-status {
+            display: flex;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 0.8rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.active { background: #00ff00; }
+        .status-dot.busy { background: #ffff00; }
+        .status-dot.idle { background: #0000ff; }
+        .status-dot.configured { background: #888888; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .metrics-panel {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .metrics-panel h4 {
+            color: #50c878;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.85rem;
+        }
+
+        .metric-value {
+            color: #4a90e2;
+            font-weight: 600;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #ff6b35, #ff4500);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            padding: 10px 15px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+        }
+
+        .btn.secondary {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+        }
+
+        .btn.danger {
+            background: linear-gradient(135deg, #dc143c, #b91c3c);
+        }
+
+        #network-container {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+        }
+
+        .connection-status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00ff00;
+            animation: pulse 2s infinite;
+        }
+
+        .connection-dot.disconnected {
+            background: #ff4444;
+        }
+
+        .log-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            height: 120px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 10px;
+            overflow-y: auto;
+            font-size: 0.75rem;
+            color: #ccc;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+
+        .log-entry {
+            margin-bottom: 2px;
+        }
+
+        .log-entry.info { color: #4a90e2; }
+        .log-entry.success { color: #00ff00; }
+        .log-entry.warning { color: #ffff00; }
+        .log-entry.error { color: #ff4444; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="header">
+            <h1>🤖 Claude Flow Global Agents Dashboard</h1>
+        </header>
+
+        <aside class="sidebar">
+            <div class="metrics-panel">
+                <h4>📊 System Metrics</h4>
+                <div class="metric-row">
+                    <span>Total Agents:</span>
+                    <span class="metric-value" id="total-agents">0</span>
+                </div>
+                <div class="metric-row">
+                    <span>Active:</span>
+                    <span class="metric-value" id="active-agents">0</span>
+                </div>
+                <div class="metric-row">
+                    <span>Busy:</span>
+                    <span class="metric-value" id="busy-agents">0</span>
+                </div>
+                <div class="metric-row">
+                    <span>Tasks Completed:</span>
+                    <span class="metric-value" id="total-tasks">0</span>
+                </div>
+                <div class="metric-row">
+                    <span>Avg Health:</span>
+                    <span class="metric-value" id="avg-health">100%</span>
+                </div>
+            </div>
+
+            <div class="agents-list">
+                <h3>🎯 Global Agents</h3>
+                <div id="agents-container">
+                    <!-- Agent cards will be dynamically populated -->
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn" onclick="spawnAllAgents()">🚀 Spawn All Agents</button>
+                <button class="btn secondary" onclick="refreshView()">🔄 Refresh View</button>
+                <button class="btn danger" onclick="terminateAllAgents()">⏹️ Terminate All</button>
+            </div>
+        </aside>
+
+        <main class="main-view">
+            <div class="connection-status">
+                <div class="connection-dot" id="connection-dot"></div>
+                <span id="connection-status">Connected</span>
+            </div>
+
+            <div id="network-container"></div>
+
+            <div class="log-panel" id="log-panel">
+                <div class="log-entry info">[$(new Date().toLocaleTimeString())] Global Agents Dashboard initialized</div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        class GlobalAgentsDashboard {
+            constructor() {
+                this.socket = null;
+                this.network = null;
+                this.nodes = new vis.DataSet();
+                this.edges = new vis.DataSet();
+                this.agents = new Map();
+
+                this.init();
+            }
+
+            init() {
+                this.connectWebSocket();
+                this.initNetwork();
+                this.setupEventHandlers();
+
+                this.log('Dashboard initialized', 'info');
+            }
+
+            connectWebSocket() {
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${wsProtocol}//${window.location.host}`;
+
+                this.socket = new WebSocket(wsUrl);
+
+                this.socket.onopen = () => {
+                    this.log('WebSocket connected', 'success');
+                    this.updateConnectionStatus(true);
+                };
+
+                this.socket.onmessage = (event) => {
+                    const message = JSON.parse(event.data);
+                    this.handleMessage(message);
+                };
+
+                this.socket.onclose = () => {
+                    this.log('WebSocket disconnected', 'warning');
+                    this.updateConnectionStatus(false);
+
+                    // Reconnect after 3 seconds
+                    setTimeout(() => this.connectWebSocket(), 3000);
+                };
+
+                this.socket.onerror = (error) => {
+                    this.log(`WebSocket error: ${error}`, 'error');
+                    this.updateConnectionStatus(false);
+                };
+            }
+
+            initNetwork() {
+                const container = document.getElementById('network-container');
+
+                const options = {
+                    nodes: {
+                        shape: 'dot',
+                        size: 20,
+                        font: {
+                            size: 12,
+                            color: '#ffffff'
+                        },
+                        borderWidth: 2,
+                        shadow: true
+                    },
+                    edges: {
+                        width: 2,
+                        color: { inherit: 'from' },
+                        smooth: {
+                            type: 'continuous'
+                        },
+                        arrows: {
+                            to: { enabled: true, scaleFactor: 1 }
+                        }
+                    },
+                    physics: {
+                        stabilization: { iterations: 100 },
+                        barnesHut: {
+                            gravitationalConstant: -2000,
+                            centralGravity: 0.3,
+                            springLength: 95,
+                            springConstant: 0.04,
+                            damping: 0.09
+                        }
+                    },
+                    interaction: {
+                        hover: true,
+                        tooltipDelay: 200
+                    }
+                };
+
+                this.network = new vis.Network(container, {
+                    nodes: this.nodes,
+                    edges: this.edges
+                }, options);
+
+                this.network.on('selectNode', (params) => {
+                    if (params.nodes.length > 0) {
+                        const nodeId = params.nodes[0];
+                        this.selectAgent(nodeId);
+                    }
+                });
+            }
+
+            handleMessage(message) {
+                switch (message.type) {
+                    case 'initial':
+                        this.loadInitialData(message.data);
+                        break;
+                    case 'global-agents-update':
+                        this.updateGlobalAgents(message.data);
+                        break;
+                    case 'node:added':
+                        this.addNode(message.data);
+                        break;
+                    case 'node:updated':
+                        this.updateNode(message.data);
+                        break;
+                    default:
+                        this.log(`Received: ${message.type}`, 'info');
+                }
+            }
+
+            loadInitialData(data) {
+                // Clear existing data
+                this.nodes.clear();
+                this.edges.clear();
+                this.agents.clear();
+
+                // Load nodes and edges
+                if (data.nodes) {
+                    this.nodes.add(data.nodes);
+                }
+                if (data.edges) {
+                    this.edges.add(data.edges.map(edge => ({
+                        id: edge.id,
+                        from: edge.from,
+                        to: edge.to,
+                        label: edge.type
+                    })));
+                }
+
+                this.log('Initial data loaded', 'success');
+            }
+
+            updateGlobalAgents(data) {
+                if (data.agents) {
+                    data.agents.forEach(agent => {
+                        this.agents.set(agent.id, agent);
+                    });
+                    this.updateAgentsList();
+                    this.updateMetrics(data.metrics);
+                }
+            }
+
+            updateAgentsList() {
+                const container = document.getElementById('agents-container');
+                container.innerHTML = '';
+
+                for (const [id, agent] of this.agents) {
+                    const card = document.createElement('div');
+                    card.className = `agent-card ${agent.status}`;
+                    card.innerHTML = `
+                        <div class="agent-name">${agent.name}</div>
+                        <div class="agent-type">${agent.type}</div>
+                        <div class="agent-status">
+                            <div class="status-dot ${agent.status}"></div>
+                            <span>${agent.status}</span>
+                        </div>
+                    `;
+
+                    card.onclick = () => this.selectAgent(`global-${id}`);
+                    container.appendChild(card);
+                }
+            }
+
+            updateMetrics(metrics) {
+                if (!metrics) return;
+
+                document.getElementById('total-agents').textContent = metrics.totalAgents || 0;
+                document.getElementById('active-agents').textContent = metrics.activeAgents || 0;
+                document.getElementById('busy-agents').textContent = metrics.busyAgents || 0;
+                document.getElementById('total-tasks').textContent = metrics.totalTasks || 0;
+                document.getElementById('avg-health').textContent =
+                    Math.round((metrics.averageHealth || 1) * 100) + '%';
+            }
+
+            selectAgent(nodeId) {
+                this.network.selectNodes([nodeId]);
+                this.network.focus(nodeId, { animation: true });
+
+                const agent = Array.from(this.agents.values())
+                    .find(a => `global-${a.id}` === nodeId);
+
+                if (agent) {
+                    this.log(`Selected agent: ${agent.name} (${agent.status})`, 'info');
+                }
+            }
+
+            updateConnectionStatus(connected) {
+                const dot = document.getElementById('connection-dot');
+                const status = document.getElementById('connection-status');
+
+                if (connected) {
+                    dot.className = 'connection-dot';
+                    status.textContent = 'Connected';
+                } else {
+                    dot.className = 'connection-dot disconnected';
+                    status.textContent = 'Disconnected';
+                }
+            }
+
+            log(message, type = 'info') {
+                const logPanel = document.getElementById('log-panel');
+                const timestamp = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = `log-entry ${type}`;
+                entry.textContent = `[${timestamp}] ${message}`;
+
+                logPanel.appendChild(entry);
+                logPanel.scrollTop = logPanel.scrollHeight;
+
+                // Keep only last 50 entries
+                while (logPanel.children.length > 50) {
+                    logPanel.removeChild(logPanel.firstChild);
+                }
+            }
+
+            setupEventHandlers() {
+                // Handle window resize
+                window.addEventListener('resize', () => {
+                    if (this.network) {
+                        this.network.redraw();
+                    }
+                });
+            }
+        }
+
+        // Global functions
+        function spawnAllAgents() {
+            dashboard.log('Spawning all agents...', 'info');
+            // This would send a command to spawn all configured agents
+        }
+
+        function refreshView() {
+            dashboard.log('Refreshing view...', 'info');
+            location.reload();
+        }
+
+        function terminateAllAgents() {
+            if (confirm('Are you sure you want to terminate all agents?')) {
+                dashboard.log('Terminating all agents...', 'warning');
+                // This would send a command to terminate all agents
+            }
+        }
+
+        // Initialize dashboard
+        const dashboard = new GlobalAgentsDashboard();
+    </script>
+</body>
+</html>

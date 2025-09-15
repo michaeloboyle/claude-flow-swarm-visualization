@@ -63,6 +63,7 @@ class SwarmVisualizationServer extends EventEmitter {
       this.clients.add(ws);
 
       // Send initial graph state
+      console.log(`📤 Sending initial data: ${this.graph.nodes.length} nodes, ${this.graph.edges.length} edges`);
       ws.send(JSON.stringify({
         type: 'initial',
         data: this.graph
@@ -81,6 +82,14 @@ class SwarmVisualizationServer extends EventEmitter {
   }
 
   setupClaudeFlowIntegration() {
+    // Initialize Global Agents Integration
+    const GlobalAgentsIntegration = require('./global-agents-integration');
+    this.globalAgents = new GlobalAgentsIntegration(this, {
+      configPath: require('path').join(require('os').homedir(), '.claude-flow/agents'),
+      logPath: require('path').join(require('os').homedir(), '.claude-flow/logs'),
+      pollInterval: 3000
+    });
+
     // Listen for Claude Flow events
     this.on('swarm:created', (data) => {
       this.addNode('Swarm', data);

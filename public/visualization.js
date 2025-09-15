@@ -16,19 +16,27 @@ class SwarmVisualization {
         this.nodeColors = {
             Swarm: '#FF6B6B',
             Agent: '#4ECDC4',
+            GlobalAgent: '#ff6b35',
             Task: '#F39C12',
             Issue: '#3498DB',
             File: '#2C3E50',
-            Memory: '#34495E'
+            Memory: '#34495E',
+            Workspace: '#4a90e2',
+            CoordinationHub: '#ff4500',
+            Analysis: '#9B59B6'
         };
 
         this.nodeShapes = {
             Swarm: 'hexagon',
             Agent: 'dot',
+            GlobalAgent: 'dot',
             Task: 'square',
             Issue: 'diamond',
             File: 'box',
-            Memory: 'database'
+            Memory: 'database',
+            Workspace: 'box',
+            CoordinationHub: 'star',
+            Analysis: 'triangle'
         };
 
         this.init();
@@ -42,6 +50,23 @@ class SwarmVisualization {
 
     setupNetwork() {
         const container = document.getElementById('network');
+
+        // Debug container dimensions
+        console.log('📐 Container element:', container);
+        console.log('📐 Container dimensions:', {
+            width: container.clientWidth,
+            height: container.clientHeight,
+            offsetWidth: container.offsetWidth,
+            offsetHeight: container.offsetHeight,
+            style: getComputedStyle(container)
+        });
+
+        // Ensure container has proper dimensions
+        if (container.clientHeight === 0) {
+            console.warn('⚠️  Container height is 0, setting explicit dimensions');
+            container.style.height = '500px';
+            container.style.width = '100%';
+        }
 
         const data = {
             nodes: this.nodes,
@@ -109,7 +134,15 @@ class SwarmVisualization {
             }
         };
 
-        this.network = new vis.Network(container, data, options);
+        try {
+            console.log('🎨 Creating vis.Network with container:', container);
+            console.log('📊 Network data:', { nodes: this.nodes.length, edges: this.edges.length });
+            this.network = new vis.Network(container, data, options);
+            console.log('✅ vis.Network created successfully');
+        } catch (error) {
+            console.error('❌ Failed to create vis.Network:', error);
+            throw error;
+        }
 
         // Network events
         this.network.on('click', (params) => {
@@ -184,6 +217,15 @@ class SwarmVisualization {
             case 'collaboration':
                 this.animateCollaboration(message.data);
                 break;
+            case 'agent:status_changed':
+                this.handleAgentStatusChange(message.data);
+                break;
+            case 'edge:removed':
+                this.removeEdge(message.data.id);
+                break;
+            case 'analysis:completed':
+                this.handleAnalysisCompletion(message.data);
+                break;
             default:
                 console.log('Unknown message type:', message.type);
         }
@@ -192,39 +234,115 @@ class SwarmVisualization {
     }
 
     loadInitialGraph(data) {
+        console.log('📥 Loading initial graph data:', data);
+        console.log(`📊 Nodes: ${data.nodes?.length || 0}, Edges: ${data.edges?.length || 0}`);
+
         // Clear existing data
         this.nodes.clear();
         this.edges.clear();
 
         // Add nodes
-        const visNodes = data.nodes.map(node => this.createVisNode(node));
-        this.nodes.add(visNodes);
+        if (data.nodes && data.nodes.length > 0) {
+            const visNodes = data.nodes.map(node => this.createVisNode(node));
+            console.log('🎯 Adding nodes to DataSet:', visNodes);
+
+            try {
+                this.nodes.add(visNodes);
+                console.log(`✅ Successfully added ${visNodes.length} nodes to DataSet`);
+                console.log('📊 DataSet now contains:', this.nodes.length, 'nodes');
+            } catch (error) {
+                console.error('❌ Error adding nodes to DataSet:', error);
+            }
+        }
 
         // Add edges
-        const visEdges = data.edges.map(edge => this.createVisEdge(edge));
-        this.edges.add(visEdges);
+        if (data.edges && data.edges.length > 0) {
+            const visEdges = data.edges.map(edge => this.createVisEdge(edge));
+            console.log('🔗 Adding edges to DataSet:', visEdges);
+
+            try {
+                this.edges.add(visEdges);
+                console.log(`✅ Successfully added ${visEdges.length} edges to DataSet`);
+                console.log('📊 DataSet now contains:', this.edges.length, 'edges');
+            } catch (error) {
+                console.error('❌ Error adding edges to DataSet:', error);
+            }
+        }
+
+        // Force network redraw with container size check
+        if (this.network) {
+            console.log('🔄 Forcing network redraw...');
+
+            // Check container dimensions again
+            const container = document.getElementById('network');
+            console.log('📐 Container dimensions after data load:', {
+                width: container.clientWidth,
+                height: container.clientHeight
+            });
+
+            this.network.redraw();
+
+            setTimeout(() => {
+                console.log('🎯 Fitting network to view...');
+                this.network.fit();
+
+                // Force one more redraw to ensure visibility
+                setTimeout(() => {
+                    console.log('🔄 Final redraw...');
+                    this.network.redraw();
+                }, 100);
+            }, 500);
+        }
 
         // Update sidebar
         this.updateSidebar();
         this.updateMetrics();
+
+        console.log('✅ Graph loaded successfully');
     }
 
     createVisNode(nodeData) {
         const type = nodeData.type || 'Unknown';
-        return {
+
+        // Debug logging to understand data structure
+        console.log('🔍 Creating vis node:', {
+            id: nodeData.id,
+            type: type,
+            label: nodeData.label,
+            name: nodeData.name,
+            allData: nodeData
+        });
+
+        const visNode = {
             id: nodeData.id,
             label: nodeData.label || nodeData.name || nodeData.id,
             group: type,
-            color: this.nodeColors[type] || '#95A5A6',
+            color: nodeData.color || this.nodeColors[type] || '#95A5A6',
             shape: this.nodeShapes[type] || 'dot',
-            size: this.getNodeSize(nodeData),
+            size: nodeData.size || this.getNodeSize(nodeData),
             title: this.createNodeTooltip(nodeData),
             data: nodeData
         };
+
+        // Apply any additional visual properties from nodeData
+        if (nodeData.font) visNode.font = nodeData.font;
+        if (nodeData.borderWidth) visNode.borderWidth = nodeData.borderWidth;
+        if (nodeData.borderColor) visNode.borderColor = nodeData.borderColor;
+
+        console.log('✅ Created vis node:', visNode);
+        return visNode;
     }
 
     createVisEdge(edgeData) {
-        return {
+        console.log('🔗 Creating vis edge:', {
+            id: edgeData.id,
+            from: edgeData.from,
+            to: edgeData.to,
+            type: edgeData.type,
+            allData: edgeData
+        });
+
+        const visEdge = {
             id: edgeData.id,
             from: edgeData.from,
             to: edgeData.to,
@@ -235,6 +353,9 @@ class SwarmVisualization {
             arrows: this.getArrowConfig(edgeData),
             data: edgeData
         };
+
+        console.log('✅ Created vis edge:', visEdge);
+        return visEdge;
     }
 
     getNodeSize(nodeData) {
@@ -268,7 +389,10 @@ class SwarmVisualization {
             MODIFIES: '#E74C3C',
             DEPENDS_ON: '#9B59B6',
             STORES: '#34495E',
-            LINKS_TO: '#2C3E50'
+            LINKS_TO: '#2C3E50',
+            COORDINATES_WITH: '#ff6b35',
+            OPERATES_IN: '#4a90e2',
+            PERFORMS: '#9B59B6'
         };
         return edgeColors[edgeData.type] || '#95A5A6';
     }
@@ -282,7 +406,10 @@ class SwarmVisualization {
             MODIFIES: 2,
             DEPENDS_ON: 2,
             STORES: 1,
-            LINKS_TO: 1
+            LINKS_TO: 1,
+            COORDINATES_WITH: 3,
+            OPERATES_IN: 2,
+            PERFORMS: 2
         };
         return widths[edgeData.type] || 1;
     }
@@ -423,7 +550,7 @@ class SwarmVisualization {
         document.getElementById('metric-nodes').textContent = nodes.length;
         document.getElementById('metric-edges').textContent = edges.length;
 
-        const agents = nodes.filter(n => n.group === 'Agent').length;
+        const agents = nodes.filter(n => n.group === 'Agent' || n.group === 'GlobalAgent').length;
         const tasks = nodes.filter(n => n.group === 'Task' && n.data?.status === 'executing').length;
         const files = nodes.filter(n => n.group === 'File').length;
         const issues = nodes.filter(n => n.group === 'Issue' && n.data?.status === 'open').length;
@@ -521,6 +648,87 @@ class SwarmVisualization {
         this.animateNodeAddition(data.filePath);
     }
 
+    handleAgentStatusChange(data) {
+        console.log(`🔄 Agent status change: ${data.agent} ${data.oldStatus} → ${data.newStatus}`);
+
+        // Add visual notification
+        this.showStatusNotification(data.agent, data.newStatus);
+
+        // Update sidebar immediately
+        this.updateSidebar();
+    }
+
+    removeEdge(edgeId) {
+        console.log(`🗑️ Removing edge: ${edgeId}`);
+        try {
+            this.edges.remove(edgeId);
+        } catch (error) {
+            console.warn('Edge not found for removal:', edgeId);
+        }
+    }
+
+    handleAnalysisCompletion(data) {
+        console.log(`✅ Analysis completed: ${data.id}`);
+
+        // Animate completion
+        const node = this.nodes.get(data.id);
+        if (node) {
+            this.nodes.update({
+                id: data.id,
+                color: '#27AE60', // Success green
+                borderWidth: 4,
+                borderColor: '#00ff00'
+            });
+
+            // Reset border after animation
+            setTimeout(() => {
+                this.nodes.update({
+                    id: data.id,
+                    borderWidth: 2,
+                    borderColor: '#27AE60'
+                });
+            }, 1000);
+        }
+    }
+
+    showStatusNotification(agentName, status) {
+        // Create floating notification
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 1000;
+            border-left: 4px solid ${this.getStatusColor(status)};
+        `;
+        notification.textContent = `${agentName}: ${status}`;
+
+        document.body.appendChild(notification);
+
+        // Remove after 3 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 3000);
+    }
+
+    getStatusColor(status) {
+        const colors = {
+            'active': '#00ff00',
+            'busy': '#ffaa00',
+            'idle': '#4a90e2',
+            'configured': '#888888',
+            'completed': '#27ae60'
+        };
+        return colors[status] || '#888888';
+    }
+
     setupEventListeners() {
         // Handle window resize
         window.addEventListener('resize', () => {
@@ -579,7 +787,126 @@ function toggleLayout() {
     }
 }
 
+// Global theme manager
+let themeManager = null;
+
+// Pane visibility state
+const paneState = {
+    sidebar: true,
+    network: true,
+    details: true,
+    console: true
+};
+
+// Console management
+const consoleOutput = {
+    maxEntries: 100,
+    entries: []
+};
+
+// Global functions for controls
+function changeTheme(themeName) {
+    if (themeName && themeManager) {
+        themeManager.applyTheme(themeName);
+    }
+}
+
+function togglePane(paneName) {
+    const app = document.getElementById('app');
+    const button = document.querySelector(`[data-pane="${paneName}"]`);
+    const pane = document.getElementById(paneName);
+
+    paneState[paneName] = !paneState[paneName];
+
+    if (paneState[paneName]) {
+        // Show pane
+        app.classList.remove(`hide-${paneName}`);
+        if (pane) pane.classList.remove('pane-hidden');
+        button.classList.add('active');
+    } else {
+        // Hide pane
+        app.classList.add(`hide-${paneName}`);
+        if (pane) pane.classList.add('pane-hidden');
+        button.classList.remove('active');
+    }
+
+    // Force network redraw when visibility changes
+    if (paneName === 'network' || window.swarmVis) {
+        setTimeout(() => {
+            if (window.swarmVis && window.swarmVis.network) {
+                window.swarmVis.network.redraw();
+                window.swarmVis.network.fit();
+            }
+        }, 350); // After transition
+    }
+
+    // Save pane state
+    localStorage.setItem('swarm-viz-panes', JSON.stringify(paneState));
+}
+
+function loadPaneState() {
+    const saved = localStorage.getItem('swarm-viz-panes');
+    if (saved) {
+        Object.assign(paneState, JSON.parse(saved));
+
+        // Apply saved state
+        const app = document.getElementById('app');
+        Object.entries(paneState).forEach(([paneName, isVisible]) => {
+            const button = document.querySelector(`[data-pane="${paneName}"]`);
+            const pane = document.getElementById(paneName);
+
+            if (!isVisible) {
+                app.classList.add(`hide-${paneName}`);
+                if (pane) pane.classList.add('pane-hidden');
+                if (button) button.classList.remove('active');
+            }
+        });
+    }
+}
+
+function logToConsole(message, level = 'info') {
+    const timestamp = new Date().toLocaleTimeString();
+    const entry = { timestamp, message, level };
+
+    consoleOutput.entries.push(entry);
+
+    // Keep only recent entries
+    if (consoleOutput.entries.length > consoleOutput.maxEntries) {
+        consoleOutput.entries.shift();
+    }
+
+    // Update console display
+    updateConsoleDisplay();
+}
+
+function updateConsoleDisplay() {
+    const output = document.getElementById('console-output');
+    if (!output) return;
+
+    const html = consoleOutput.entries.map(entry => `
+        <div class="console-entry">
+            <span class="console-timestamp">${entry.timestamp}</span>
+            <span class="console-level-${entry.level}">${entry.message}</span>
+        </div>
+    `).join('');
+
+    output.innerHTML = html;
+    output.scrollTop = output.scrollHeight;
+}
+
+function clearConsole() {
+    consoleOutput.entries = [];
+    updateConsoleDisplay();
+    logToConsole('Console cleared', 'info');
+}
+
 // Initialize visualization when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    swarmVis = new SwarmVisualization();
+    console.log('🚀 DOM Content Loaded - Initializing SwarmVisualization');
+    try {
+        swarmVis = new SwarmVisualization();
+        console.log('✅ SwarmVisualization initialized successfully');
+    } catch (error) {
+        console.error('❌ Failed to initialize SwarmVisualization:', error);
+    }
 });
