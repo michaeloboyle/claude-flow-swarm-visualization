@@ -904,6 +904,11 @@ function clearConsole() {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 DOM Content Loaded - Initializing SwarmVisualization');
     try {
+        // Initialize theme manager
+        themeManager = new ThemeManager();
+        themeManager.loadSavedTheme();
+        console.log('🎨 Theme manager initialized');
+
         swarmVis = new SwarmVisualization();
         console.log('✅ SwarmVisualization initialized successfully');
     } catch (error) {

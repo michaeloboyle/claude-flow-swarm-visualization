@@ -381,8 +381,20 @@
     <div id="app">
         <div id="header" class="panel">
             <h1>🐝 PKM Swarm Intelligence</h1>
-            <div id="connection-indicator" class="connection-status disconnected">
-                Disconnected
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <select id="theme-selector" onchange="changeTheme(this.value)">
+                    <option value="vscode-dark">VSCode Dark</option>
+                    <option value="vscode-light">VSCode Light</option>
+                    <option value="github-dark">GitHub Dark</option>
+                    <option value="obsidian-default">Obsidian Default</option>
+                    <option value="obsidian-minimal">Obsidian Minimal</option>
+                    <option value="catppuccin-mocha">Catppuccin Mocha</option>
+                    <option value="dracula">Dracula</option>
+                    <option value="nord">Nord</option>
+                </select>
+                <div id="connection-indicator" class="connection-status disconnected">
+                    Disconnected
+                </div>
             </div>
         </div>
 
