@@ -28,12 +28,26 @@ class SwarmVisualizationServer extends EventEmitter {
     // Client connections
     this.clients = new Set();
 
+    // Garbage collection settings
+    this.gcConfig = {
+      maxNodes: 500,                    // Maximum nodes before cleanup
+      maxEdges: 600,                    // Maximum edges before cleanup
+      maxAge: 10 * 60 * 1000,          // 10 minutes in milliseconds
+      gcInterval: 30 * 1000,           // Run GC every 30 seconds
+      preserveTypes: ['GlobalAgent', 'Workspace', 'CoordinationHub'], // Never delete these
+      enabled: true
+    };
+
     this.setupRoutes();
     this.setupWebSocket();
     this.setupClaudeFlowIntegration();
+    this.startGarbageCollection();
   }
 
   setupRoutes() {
+    // Middleware
+    this.app.use(express.json());
+
     // Serve static files
     this.app.use(express.static(path.join(__dirname, 'public')));
 
@@ -53,6 +67,26 @@ class SwarmVisualizationServer extends EventEmitter {
         nodes: this.graph.nodes.length,
         edges: this.graph.edges.length,
         uptime: process.uptime()
+      });
+    });
+
+    this.app.get('/api/gc/stats', (req, res) => {
+      res.json(this.getGcStats());
+    });
+
+    this.app.post('/api/gc/run', (req, res) => {
+      const beforeNodes = this.graph.nodes.length;
+      const beforeEdges = this.graph.edges.length;
+
+      this.runGarbageCollection();
+
+      res.json({
+        success: true,
+        beforeNodes,
+        afterNodes: this.graph.nodes.length,
+        beforeEdges,
+        afterEdges: this.graph.edges.length,
+        message: 'Manual garbage collection completed'
       });
     });
   }
@@ -334,6 +368,107 @@ class SwarmVisualizationServer extends EventEmitter {
         client.send(message);
       }
     }
+  }
+
+  // Garbage Collection System
+  startGarbageCollection() {
+    if (!this.gcConfig.enabled) return;
+
+    console.log(`🗑️  Starting garbage collection (interval: ${this.gcConfig.gcInterval}ms)`);
+
+    this.gcInterval = setInterval(() => {
+      this.runGarbageCollection();
+    }, this.gcConfig.gcInterval);
+  }
+
+  runGarbageCollection() {
+    const beforeNodes = this.graph.nodes.length;
+    const beforeEdges = this.graph.edges.length;
+
+    // Skip GC if under thresholds
+    if (beforeNodes < this.gcConfig.maxNodes && beforeEdges < this.gcConfig.maxEdges) {
+      return;
+    }
+
+    const now = new Date();
+    const cutoffTime = new Date(now.getTime() - this.gcConfig.maxAge);
+
+    // Remove old nodes (except preserved types)
+    const oldNodes = this.graph.nodes.filter(node => {
+      const isOld = new Date(node.timestamp) < cutoffTime;
+      const isPreserved = this.gcConfig.preserveTypes.includes(node.type);
+      return isOld && !isPreserved;
+    });
+
+    const oldNodeIds = new Set(oldNodes.map(n => n.id));
+
+    // Remove old edges connected to old nodes or simply old edges
+    const oldEdges = this.graph.edges.filter(edge => {
+      const isOld = new Date(edge.timestamp) < cutoffTime;
+      const hasOldNode = oldNodeIds.has(edge.from) || oldNodeIds.has(edge.to);
+      return isOld || hasOldNode;
+    });
+
+    // Clean up nodes
+    this.graph.nodes = this.graph.nodes.filter(node => !oldNodeIds.has(node.id));
+
+    // Clean up edges
+    const oldEdgeIds = new Set(oldEdges.map(e => e.id));
+    this.graph.edges = this.graph.edges.filter(edge => !oldEdgeIds.has(edge.id));
+
+    // If still over limits, remove oldest non-preserved nodes
+    if (this.graph.nodes.length > this.gcConfig.maxNodes) {
+      const removableNodes = this.graph.nodes
+        .filter(node => !this.gcConfig.preserveTypes.includes(node.type))
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      const excessCount = this.graph.nodes.length - this.gcConfig.maxNodes;
+      const toRemove = removableNodes.slice(0, excessCount);
+      const removeIds = new Set(toRemove.map(n => n.id));
+
+      this.graph.nodes = this.graph.nodes.filter(node => !removeIds.has(node.id));
+      this.graph.edges = this.graph.edges.filter(edge =>
+        !removeIds.has(edge.from) && !removeIds.has(edge.to)
+      );
+    }
+
+    const afterNodes = this.graph.nodes.length;
+    const afterEdges = this.graph.edges.length;
+
+    if (beforeNodes !== afterNodes || beforeEdges !== afterEdges) {
+      console.log(`🗑️  GC: ${beforeNodes}→${afterNodes} nodes, ${beforeEdges}→${afterEdges} edges`);
+
+      // Broadcast cleanup to clients
+      this.broadcast('gc:cleanup', {
+        beforeNodes,
+        afterNodes,
+        beforeEdges,
+        afterEdges,
+        removedNodes: beforeNodes - afterNodes,
+        removedEdges: beforeEdges - afterEdges
+      });
+    }
+  }
+
+  stopGarbageCollection() {
+    if (this.gcInterval) {
+      clearInterval(this.gcInterval);
+      this.gcInterval = null;
+      console.log('⏹️  Garbage collection stopped');
+    }
+  }
+
+  getGcStats() {
+    return {
+      config: this.gcConfig,
+      current: {
+        nodes: this.graph.nodes.length,
+        edges: this.graph.edges.length,
+        memoryUsage: process.memoryUsage()
+      },
+      nodesByType: this.countByType(this.graph.nodes),
+      edgesByType: this.countByType(this.graph.edges)
+    };
   }
 
   start() {

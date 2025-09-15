@@ -226,6 +226,9 @@ class SwarmVisualization {
             case 'analysis:completed':
                 this.handleAnalysisCompletion(message.data);
                 break;
+            case 'gc:cleanup':
+                this.handleGarbageCollection(message.data);
+                break;
             default:
                 console.log('Unknown message type:', message.type);
         }
@@ -911,6 +914,34 @@ class SwarmVisualization {
                 });
             }, 1000);
         }
+    }
+
+    handleGarbageCollection(data) {
+        console.log(`🗑️ Garbage collection: ${data.removedNodes} nodes, ${data.removedEdges} edges removed`);
+
+        // Log the cleanup activity
+        this.logActivity('system',
+            `GC: Cleaned ${data.removedNodes} nodes, ${data.removedEdges} edges (${data.beforeNodes}→${data.afterNodes})`
+        );
+
+        // Update sidebar and metrics immediately to reflect cleanup
+        this.updateSidebar();
+        this.updateMetrics();
+
+        // Flash the metrics to indicate cleanup happened
+        this.flashMetrics();
+    }
+
+    flashMetrics() {
+        const metrics = document.querySelectorAll('.metric-value');
+        metrics.forEach(metric => {
+            metric.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+            metric.style.transition = 'background-color 0.3s';
+
+            setTimeout(() => {
+                metric.style.backgroundColor = 'transparent';
+            }, 300);
+        });
     }
 
     // DEPRECATED: Replaced with node-based activity visualization
