@@ -692,30 +692,73 @@ class SwarmVisualization {
     }
 
     showStatusNotification(agentName, status) {
+        // Initialize notification manager if not exists
+        if (!window.notificationManager) {
+            window.notificationManager = {
+                notifications: [],
+                baseTop: 80,
+                spacing: 50
+            };
+        }
+
+        const manager = window.notificationManager;
+
+        // Calculate position for new notification
+        const position = manager.baseTop + (manager.notifications.length * manager.spacing);
+
         // Create floating notification
         const notification = document.createElement('div');
+        notification.className = 'notification-enter';
         notification.style.cssText = `
             position: fixed;
-            top: 80px;
+            top: ${position}px;
             right: 20px;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.9);
             color: white;
-            padding: 10px 15px;
-            border-radius: 5px;
-            font-size: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 11px;
             z-index: 1000;
-            border-left: 4px solid ${this.getStatusColor(status)};
+            border-left: 3px solid ${this.getStatusColor(status)};
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: top 0.3s ease;
+            max-width: 250px;
+            word-wrap: break-word;
         `;
         notification.textContent = `${agentName}: ${status}`;
+        notification.setAttribute('data-notification-id', Date.now());
+
+        // Add to tracking
+        manager.notifications.push(notification);
 
         document.body.appendChild(notification);
 
-        // Remove after 3 seconds
+        // Remove after 2.5 seconds
         setTimeout(() => {
             if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
+                // Add exit animation
+                notification.className = 'notification-exit';
+
+                // Remove from DOM after animation
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+
+                // Remove from tracking and reposition remaining notifications
+                const index = manager.notifications.indexOf(notification);
+                if (index > -1) {
+                    manager.notifications.splice(index, 1);
+
+                    // Reposition remaining notifications
+                    manager.notifications.forEach((notif, i) => {
+                        const newTop = manager.baseTop + (i * manager.spacing);
+                        notif.style.top = `${newTop}px`;
+                    });
+                }
             }
-        }, 3000);
+        }, 2500);
     }
 
     getStatusColor(status) {
