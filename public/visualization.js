@@ -600,6 +600,59 @@ class SwarmVisualization {
         }
     }
 
+    animateFileModification(fileId, operation) {
+        const node = this.nodes.get(fileId);
+        if (!node) return;
+
+        const baseSize = node.size || 20;
+
+        // Different animations based on operation type
+        const operationStyles = {
+            'read': {
+                size: baseSize * 1.1,
+                borderColor: '#3498DB',
+                borderWidth: 3
+            },
+            'write': {
+                size: baseSize * 1.3,
+                borderColor: '#E74C3C',
+                borderWidth: 4
+            },
+            'update': {
+                size: baseSize * 1.2,
+                borderColor: '#F39C12',
+                borderWidth: 3
+            },
+            'analyze': {
+                size: baseSize * 1.4,
+                borderColor: '#9B59B6',
+                borderWidth: 5
+            }
+        };
+
+        const style = operationStyles[operation] || operationStyles['read'];
+
+        // Apply the operation style
+        this.nodes.update({
+            id: fileId,
+            ...style,
+            title: `${node.label}\nOperation: ${operation}`
+        });
+
+        // Log the file operation
+        this.logActivity('file', `${node.label} ${operation} operation (size changed)`);
+
+        // Return to normal size after animation
+        setTimeout(() => {
+            this.nodes.update({
+                id: fileId,
+                size: baseSize,
+                borderWidth: 2,
+                borderColor: this.nodeColors['File'] || '#2C3E50'
+            });
+        }, 800);
+    }
+
     animateEdgeAddition(edgeId) {
         // Flash effect for new edges
         const edge = this.edges.get(edgeId);
@@ -653,8 +706,8 @@ class SwarmVisualization {
             ...data
         });
 
-        // Flash the file node
-        this.animateNodeAddition(data.filePath);
+        // Animate file modification with size and flash effects
+        this.animateFileModification(data.filePath, data.operation);
     }
 
     handleAgentStatusChange(data) {
@@ -709,10 +762,14 @@ class SwarmVisualization {
         const node = this.nodes.get(nodeId);
         if (!node) return;
 
+        // Get base size for calculations
+        const baseSize = node.data?.size || this.getNodeSize(node.data || {});
+
         const statusStyles = {
             'active': {
                 borderWidth: 4,
                 borderColor: '#00ff00',
+                size: baseSize * 1.2, // 20% larger when active
                 shadow: {
                     enabled: true,
                     size: 20,
@@ -722,6 +779,7 @@ class SwarmVisualization {
             'busy': {
                 borderWidth: 5,
                 borderColor: '#ffaa00',
+                size: baseSize * 1.4, // 40% larger when busy
                 shadow: {
                     enabled: true,
                     size: 25,
@@ -731,6 +789,7 @@ class SwarmVisualization {
             'idle': {
                 borderWidth: 2,
                 borderColor: '#4a90e2',
+                size: baseSize * 0.9, // 10% smaller when idle
                 shadow: {
                     enabled: true,
                     size: 10,
@@ -740,6 +799,7 @@ class SwarmVisualization {
             'completed': {
                 borderWidth: 3,
                 borderColor: '#27ae60',
+                size: baseSize * 1.1, // 10% larger when completed
                 shadow: {
                     enabled: true,
                     size: 15,
@@ -749,6 +809,7 @@ class SwarmVisualization {
             'configured': {
                 borderWidth: 2,
                 borderColor: '#888888',
+                size: baseSize, // Normal size when configured
                 shadow: {
                     enabled: false
                 }
@@ -757,7 +818,7 @@ class SwarmVisualization {
 
         const style = statusStyles[status] || statusStyles['configured'];
 
-        // Apply the status style
+        // Apply the status style with smooth animation
         this.nodes.update({
             id: nodeId,
             ...style,
@@ -770,6 +831,9 @@ class SwarmVisualization {
         } else {
             this.removePulsingEffect(nodeId);
         }
+
+        // Log the visual change
+        this.logActivity('system', `Node ${node.label} resized for status: ${status}`);
     }
 
     addPulsingEffect(nodeId, status) {
