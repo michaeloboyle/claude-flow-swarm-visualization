@@ -651,11 +651,122 @@ class SwarmVisualization {
     handleAgentStatusChange(data) {
         console.log(`🔄 Agent status change: ${data.agent} ${data.oldStatus} → ${data.newStatus}`);
 
-        // Add visual notification
-        this.showStatusNotification(data.agent, data.newStatus);
+        // Update node visual to indicate activity
+        this.animateNodeStatus(data.agentId, data.newStatus);
 
         // Update sidebar immediately
         this.updateSidebar();
+    }
+
+    animateNodeStatus(nodeId, status) {
+        const node = this.nodes.get(nodeId);
+        if (!node) return;
+
+        const statusStyles = {
+            'active': {
+                borderWidth: 4,
+                borderColor: '#00ff00',
+                shadow: {
+                    enabled: true,
+                    size: 20,
+                    color: 'rgba(0, 255, 0, 0.5)'
+                }
+            },
+            'busy': {
+                borderWidth: 5,
+                borderColor: '#ffaa00',
+                shadow: {
+                    enabled: true,
+                    size: 25,
+                    color: 'rgba(255, 170, 0, 0.6)'
+                }
+            },
+            'idle': {
+                borderWidth: 2,
+                borderColor: '#4a90e2',
+                shadow: {
+                    enabled: true,
+                    size: 10,
+                    color: 'rgba(74, 144, 226, 0.3)'
+                }
+            },
+            'completed': {
+                borderWidth: 3,
+                borderColor: '#27ae60',
+                shadow: {
+                    enabled: true,
+                    size: 15,
+                    color: 'rgba(39, 174, 96, 0.4)'
+                }
+            },
+            'configured': {
+                borderWidth: 2,
+                borderColor: '#888888',
+                shadow: {
+                    enabled: false
+                }
+            }
+        };
+
+        const style = statusStyles[status] || statusStyles['configured'];
+
+        // Apply the status style
+        this.nodes.update({
+            id: nodeId,
+            ...style,
+            title: `${node.label}\nStatus: ${status}`
+        });
+
+        // Add pulsing effect for active/busy states
+        if (status === 'active' || status === 'busy') {
+            this.addPulsingEffect(nodeId, status);
+        } else {
+            this.removePulsingEffect(nodeId);
+        }
+    }
+
+    addPulsingEffect(nodeId, status) {
+        // Remove any existing pulse
+        this.removePulsingEffect(nodeId);
+
+        const pulseColors = {
+            'active': '#00ff00',
+            'busy': '#ffaa00'
+        };
+
+        const pulseColor = pulseColors[status] || '#4a90e2';
+        let pulseSize = 3;
+        let growing = true;
+
+        // Store interval ID for cleanup
+        if (!this.pulseIntervals) {
+            this.pulseIntervals = {};
+        }
+
+        this.pulseIntervals[nodeId] = setInterval(() => {
+            if (growing) {
+                pulseSize += 1;
+                if (pulseSize >= 6) growing = false;
+            } else {
+                pulseSize -= 1;
+                if (pulseSize <= 3) growing = true;
+            }
+
+            const node = this.nodes.get(nodeId);
+            if (node) {
+                this.nodes.update({
+                    id: nodeId,
+                    borderWidth: pulseSize
+                });
+            }
+        }, 200);
+    }
+
+    removePulsingEffect(nodeId) {
+        if (this.pulseIntervals && this.pulseIntervals[nodeId]) {
+            clearInterval(this.pulseIntervals[nodeId]);
+            delete this.pulseIntervals[nodeId];
+        }
     }
 
     removeEdge(edgeId) {
@@ -691,75 +802,8 @@ class SwarmVisualization {
         }
     }
 
-    showStatusNotification(agentName, status) {
-        // Initialize notification manager if not exists
-        if (!window.notificationManager) {
-            window.notificationManager = {
-                notifications: [],
-                baseTop: 80,
-                spacing: 50
-            };
-        }
-
-        const manager = window.notificationManager;
-
-        // Calculate position for new notification
-        const position = manager.baseTop + (manager.notifications.length * manager.spacing);
-
-        // Create floating notification
-        const notification = document.createElement('div');
-        notification.className = 'notification-enter';
-        notification.style.cssText = `
-            position: fixed;
-            top: ${position}px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.9);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 11px;
-            z-index: 1000;
-            border-left: 3px solid ${this.getStatusColor(status)};
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            transition: top 0.3s ease;
-            max-width: 250px;
-            word-wrap: break-word;
-        `;
-        notification.textContent = `${agentName}: ${status}`;
-        notification.setAttribute('data-notification-id', Date.now());
-
-        // Add to tracking
-        manager.notifications.push(notification);
-
-        document.body.appendChild(notification);
-
-        // Remove after 2.5 seconds
-        setTimeout(() => {
-            if (notification.parentNode) {
-                // Add exit animation
-                notification.className = 'notification-exit';
-
-                // Remove from DOM after animation
-                setTimeout(() => {
-                    if (notification.parentNode) {
-                        notification.parentNode.removeChild(notification);
-                    }
-                }, 300);
-
-                // Remove from tracking and reposition remaining notifications
-                const index = manager.notifications.indexOf(notification);
-                if (index > -1) {
-                    manager.notifications.splice(index, 1);
-
-                    // Reposition remaining notifications
-                    manager.notifications.forEach((notif, i) => {
-                        const newTop = manager.baseTop + (i * manager.spacing);
-                        notif.style.top = `${newTop}px`;
-                    });
-                }
-            }
-        }, 2500);
-    }
+    // DEPRECATED: Replaced with node-based activity visualization
+    // showStatusNotification() - removed in favor of animateNodeStatus()
 
     getStatusColor(status) {
         const colors = {
