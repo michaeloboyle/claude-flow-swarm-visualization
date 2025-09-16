@@ -29,6 +29,10 @@ Real-time WebSocket-based visualization system for Claude Flow swarm intelligenc
 ### Documentation
 - `npm run docs` - Generate JSDoc documentation
 
+### Docker
+- `npm run docker:build` - Build Docker container
+- `npm run docker:run` - Run containerized visualization server
+
 ## Architecture
 
 ### Core Server (`swarm-vis-server.js`)
@@ -37,6 +41,8 @@ Real-time WebSocket-based visualization system for Claude Flow swarm intelligenc
 - Maintains graph state with nodes and edges
 - Provides REST API endpoints for graph data and metrics
 - Integrates with Claude Flow through event ingestion
+- **Memory Management**: Automatic garbage collection system with configurable limits
+- **Client-Aware GC**: More aggressive cleanup when no clients are connected
 
 ### Graph Schema (`swarm-vis-schema.json`)
 Defines six node types with Neo4j-like relationships:
@@ -49,6 +55,12 @@ Defines six node types with Neo4j-like relationships:
 - Real-time WebSocket client for receiving graph updates
 - Supports hierarchical and force-directed layouts
 - Interactive controls for physics, layout, and view fitting
+
+### Multiple Visualization Interfaces
+- **Main Interface** (`index.html`): Primary swarm visualization
+- **Global Agents Dashboard** (`global-agents-dashboard.html`): Agent-focused view
+- **Debug Interface** (`debug-vis.html`): Development and troubleshooting
+- **Test Interface** (`test-vis.html`): Testing visualization components
 
 ### Event Flow
 1. Claude Flow events → `ingestClaudeFlowEvent()`
@@ -84,6 +96,12 @@ Tests are organized in:
 - `tests/integration/` - Integration tests for Claude Flow
 - `tests/setup.js` - Jest setup configuration
 
-Coverage thresholds:
+Coverage thresholds (from `jest.config.js`):
 - Global: 85% lines/statements, 80% branches
 - Critical `swarm-vis-server.js`: 95% lines/statements, 90% branches
+
+### TDD/BDD Workflow
+The project follows strict TDD principles with dedicated test commands:
+- Use `npm run test:tdd` for unit test development
+- Use `npm run test:bdd` for integration test development
+- Coverage reports required before commits

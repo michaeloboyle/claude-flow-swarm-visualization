@@ -29,9 +29,7 @@ Real-time WebSocket-based visualization system for Claude Flow swarm activities 
 - Total nodes and connections
 - Active agents and running tasks
 - File modifications and open issues
-- Performance analytics
-
-## Quick Start
+- Performance analyticstodo
 
 ### Installation
 ```bash
